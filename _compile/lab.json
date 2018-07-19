@@ -14,6 +14,7 @@
     "src/objects/Planet.js",
     "src/objects/Terrain.js",
     "src/objects/Lensflare.js",
+	"src/objects/AsyncCubeCamera.js",
     "src/objects/SuperSky.js",
     "src/helpers/CarHelper.js",
     "src/helpers/PointHelper.js",

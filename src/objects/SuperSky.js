@@ -346,7 +346,7 @@ function SuperSky ( view, o ) {
 	var sphere = new THREE.Mesh( new THREE.SphereBufferGeometry( 1, 30, 15 ), this.materialSky );
 	this.scene.add( sphere );
 
-	this.camera = new THREE.CubeCamera( 0.5, 2, setting.resolution );
+	this.camera = new THREE.AsyncCubeCamera( 0.5, 2, setting.resolution );
 	this.scene.add( this.camera );
 	this.camera.renderTarget.texture.minFilter = THREE.LinearMipMapLinearFilter;
 	this.camera.renderTarget.texture.format = THREE.RGBAFormat;
