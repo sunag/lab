@@ -25,10 +25,12 @@ view.init( start );
 
 function upTime(){
 
+	requestAnimationFrame( upTime );
+
 	if (view.sky.camera.done) {
 	
-		h+=0.003;
-		//h+=0.1;
+		//h+=0.003;
+		h+=0.01;
 		if(h>24) h = 0;
 		if(h<0) h = 24;
 		
@@ -57,7 +59,8 @@ function start () {
 
 	view.addSky();
 
-	setInterval( upTime, 30 );
+	requestAnimationFrame( upTime );
+	//setInterval( upTime, 30 );
 
 }
 

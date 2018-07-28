@@ -75,6 +75,9 @@ function SuperSky ( view, o ) {
     this.sunSphere = new THREE.Spherical();
     this.moonSphere = new THREE.Spherical();
 
+	this.lerpSunPosition = new THREE.Vector3();
+	this.lerpSunSphere = new THREE.Spherical();
+	
     // textures
 
     var loader = new THREE.TextureLoader();
@@ -592,12 +595,22 @@ SuperSky.prototype = Object.assign( Object.create( THREE.Group.prototype ), {
     	var s = this.setting;
     	var r = this.torad;
 
-    	for( var i in o ){
+    	for ( var i in o ) {
 			if( s[i] !== undefined ) s[i] = o[i];
+		}
+		
+		if ( s.hour !== s.currentHour ) {
+			
+			s.oldHour = s.currentHour;
+			s.currentHour = s.hour;
+			
 		}
 
     	s.inclination = ( s.hour * 15 ) - 90;
     	s.timelap = s.hour;
+		
+		s.lerpHour = THREE.Math.lerp( s.oldHour, s.hour, this.camera.progress );
+		s.lerpInclination = ( s.lerpHour * 15 ) - 90;
 
     	this.sunSphere.phi = ( s.inclination - 90 ) * r;
         this.sunSphere.theta = ( s.azimuth - 90 ) * r;
@@ -607,10 +620,12 @@ SuperSky.prototype = Object.assign( Object.create( THREE.Group.prototype ), {
         this.moonSphere.theta = ( s.azimuth - 90 ) * r;
         this.moonPosition.setFromSpherical( this.moonSphere );
 
-        
+		this.lerpSunSphere.phi = ( s.lerpInclination - 90 ) * r;
+        this.lerpSunSphere.theta = ( s.azimuth - 90 ) * r;
+        this.lerpSunPosition.setFromSpherical( this.lerpSunSphere );
 
         // fake sun / moon
-        this.sun.position.copy( this.sunPosition ).multiplyScalar( this.astralDistance );
+        this.sun.position.copy( this.lerpSunPosition ).multiplyScalar( this.astralDistance );
         this.moon.position.copy( this.moonPosition ).multiplyScalar( this.astralDistance );
 
 
@@ -785,4 +800,4 @@ SuperSky.prototype = Object.assign( Object.create( THREE.Group.prototype ), {
 
 	},
 
- });
+});
