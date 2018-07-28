@@ -64177,8 +64177,11 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 
 	var options = { format: THREE.RGBFormat, magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter };
 
-	this.backbufferRenderTarget = new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options );
-	this.backbufferRenderTarget.texture.name = "BackbufferCubeCamera";
+	this.backbufferRenderTargets = [
+		new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options ),
+		new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options ),
+		new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options )
+	];
 	
 	this.renderTarget = new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options );
 	this.renderTarget.texture.name = "CubeCamera";
@@ -64188,9 +64191,30 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 	var boxMesh = new THREE.Mesh(
 		new THREE.BoxBufferGeometry( 1, 1, 1 ),
 		new THREE.ShaderMaterial( {
-			uniforms: THREE.ShaderLib.cube.uniforms,
+			uniforms: {
+				'tCubeA': { value: null },
+				'tCubeB': { value: null },
+				'alpha': { value: 1 }
+			},
 			vertexShader: THREE.ShaderLib.cube.vertexShader,
-			fragmentShader: THREE.ShaderLib.cube.fragmentShader,
+			fragmentShader: [
+				"uniform samplerCube tCubeA;",
+				"uniform samplerCube tCubeB;",
+				"uniform float alpha;",
+				
+				"varying vec3 vWorldPosition;",
+				
+				"#include <common>",
+				
+				"void main() {",
+				
+					"vec4 cubeA = textureCube( tCubeA, vWorldPosition.xyz );",
+					"vec4 cubeB = textureCube( tCubeB, vWorldPosition.xyz );",
+					
+					"gl_FragColor = mix( cubeA, cubeB, alpha );",
+					
+				"}",
+			].join( '\n' ),
 			side: THREE.BackSide,
 			depthTest: true,
 			depthWrite: false,
@@ -64198,28 +64222,30 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 		} )
 	);
 	
-	boxMesh.material.uniforms.tCube.value = this.backbufferRenderTarget.texture;
-	
 	backbufferScene.add( boxMesh );
 	
 	//-
 	
-	this.backbuffer = true;
-	
 	this.done = false;
+	this.progress = 0;
 
 	var stepFace = 0,
 		stepX = 0,
 		stepY = 0,
-		stepBlock = cubeResolution,
-		//stepBlock = cubeResolution / 4,
+		stepTotal = 0,
+		stepMax = cubeResolution * 6,
+		stepDivision = 2,
+		cubeIndex = 0,
+		cubeMax = this.backbufferRenderTargets.length,
+		//stepBlock = cubeResolution,
+		stepBlock = cubeResolution / stepDivision,
 		cameras = [ cameraPX, cameraNX, cameraPY, cameraNY, cameraPZ, cameraNZ ];
 	
 	this.update = function ( renderer, scene ) {
 
 		if ( this.parent === null ) this.updateMatrixWorld();
 		
-		var renderTarget = this.backbuffer ? this.backbufferRenderTarget : this.renderTarget;
+		var renderTarget = this.backbufferRenderTargets[ cubeIndex ];
 
 		renderTarget.activeCubeFace = stepFace;
 		renderTarget.scissor.set( stepX, stepY, stepBlock, stepBlock );
@@ -64231,6 +64257,7 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 		this.done = false;
 		
 		stepX += stepBlock;
+		stepTotal += stepBlock;
 		
 		if (stepX === cubeResolution) {
 			
@@ -64246,18 +64273,9 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 				if (stepFace === 6) {
 					
 					stepFace = 0;
+					stepTotal = 0;
 					
-					if (this.backbuffer) {
-						
-						for(var i = 0; i < 6; i++) {
-							
-							this.renderTarget.activeCubeFace = i;
-							
-							renderer.render( backbufferScene, cameras[i], this.renderTarget );
-							
-						}
-					
-					}
+					cubeIndex = ( cubeIndex + 1 ) % cubeMax;
 					
 					this.done = true;
 					
@@ -64266,6 +64284,22 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 			}
 			
 		}
+
+		this.progress = ( stepTotal / stepDivision ) / stepMax;
+
+		boxMesh.material.uniforms.tCubeA.value = this.backbufferRenderTargets[ ( cubeIndex + 1 ) % cubeMax ].texture;
+		boxMesh.material.uniforms.tCubeB.value = this.backbufferRenderTargets[ ( cubeIndex + 2 ) % cubeMax ].texture;
+		boxMesh.material.uniforms.alpha.value = this.progress;
+		
+		for(var i = 0; i < 6; i++) {
+							
+			this.renderTarget.activeCubeFace = i;
+			
+			renderer.render( backbufferScene, cameras[i], this.renderTarget );
+			
+		}
+		
+		
 		
 		//-
 
@@ -64294,6 +64328,7 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 
 THREE.AsyncCubeCamera.prototype = Object.create( THREE.Object3D.prototype );
 THREE.AsyncCubeCamera.prototype.constructor = THREE.AsyncCubeCamera;
+
 // @author Artur Vill _ @shaderology
 // @author lth _ @3dflashlo
 
@@ -64371,6 +64406,9 @@ function SuperSky ( view, o ) {
     this.sunSphere = new THREE.Spherical();
     this.moonSphere = new THREE.Spherical();
 
+	this.lerpSunPosition = new THREE.Vector3();
+	this.lerpSunSphere = new THREE.Spherical();
+	
     // textures
 
     var loader = new THREE.TextureLoader();
@@ -64888,12 +64926,22 @@ SuperSky.prototype = Object.assign( Object.create( THREE.Group.prototype ), {
     	var s = this.setting;
     	var r = this.torad;
 
-    	for( var i in o ){
+    	for ( var i in o ) {
 			if( s[i] !== undefined ) s[i] = o[i];
+		}
+		
+		if ( s.hour !== s.currentHour ) {
+			
+			s.oldHour = s.currentHour;
+			s.currentHour = s.hour;
+			
 		}
 
     	s.inclination = ( s.hour * 15 ) - 90;
     	s.timelap = s.hour;
+		
+		s.lerpHour = THREE.Math.lerp( s.oldHour, s.hour, this.camera.progress );
+		s.lerpInclination = ( s.lerpHour * 15 ) - 90;
 
     	this.sunSphere.phi = ( s.inclination - 90 ) * r;
         this.sunSphere.theta = ( s.azimuth - 90 ) * r;
@@ -64903,10 +64951,12 @@ SuperSky.prototype = Object.assign( Object.create( THREE.Group.prototype ), {
         this.moonSphere.theta = ( s.azimuth - 90 ) * r;
         this.moonPosition.setFromSpherical( this.moonSphere );
 
-        
+		this.lerpSunSphere.phi = ( s.lerpInclination - 90 ) * r;
+        this.lerpSunSphere.theta = ( s.azimuth - 90 ) * r;
+        this.lerpSunPosition.setFromSpherical( this.lerpSunSphere );
 
         // fake sun / moon
-        this.sun.position.copy( this.sunPosition ).multiplyScalar( this.astralDistance );
+        this.sun.position.copy( this.lerpSunPosition ).multiplyScalar( this.astralDistance );
         this.moon.position.copy( this.moonPosition ).multiplyScalar( this.astralDistance );
 
 
@@ -65081,7 +65131,8 @@ SuperSky.prototype = Object.assign( Object.create( THREE.Group.prototype ), {
 
 	},
 
- });
+});
+
 THREE.CarHelper = function ( p, center, deep ) {
 
     var s = 0.2;
