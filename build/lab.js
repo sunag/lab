@@ -64180,15 +64180,31 @@ THREE.AsyncCubeCamera = function( near, far, cubeResolution ) {
 	this.backbufferRenderTarget = new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options );
 	this.backbufferRenderTarget.texture.name = "BackbufferCubeCamera";
 	
-	var backbufferScene = new THREE.Scene();
-	backbufferScene.background = this.backbufferRenderTarget.texture;
-	
 	this.renderTarget = new THREE.WebGLRenderTargetCube( cubeResolution, cubeResolution, options );
 	this.renderTarget.texture.name = "CubeCamera";
 
+	var backbufferScene = new THREE.Scene();
+	
+	var boxMesh = new THREE.Mesh(
+		new THREE.BoxBufferGeometry( 1, 1, 1 ),
+		new THREE.ShaderMaterial( {
+			uniforms: THREE.ShaderLib.cube.uniforms,
+			vertexShader: THREE.ShaderLib.cube.vertexShader,
+			fragmentShader: THREE.ShaderLib.cube.fragmentShader,
+			side: THREE.BackSide,
+			depthTest: true,
+			depthWrite: false,
+			fog: false
+		} )
+	);
+	
+	boxMesh.material.uniforms.tCube.value = this.backbufferRenderTarget.texture;
+	
+	backbufferScene.add( boxMesh );
+	
 	//-
 	
-	this.backbuffer = false;
+	this.backbuffer = true;
 	
 	this.done = false;
 
