@@ -27,8 +27,8 @@ function upTime(){
 
 	if (view.sky.camera.done) {
 	
-		//h+=0.02;
-		h+=0.1;
+		h+=0.004;
+		//h+=0.1;
 		if(h>24) h = 0;
 		if(h<0) h = 24;
 		
@@ -57,7 +57,7 @@ function start () {
 
 	view.addSky();
 
-	setInterval( upTime, 60 );
+	setInterval( upTime, 30 );
 
 }
 
